@@ -12,7 +12,7 @@ import { GoogleOAuthProvider } from "@react-oauth/google";
 import { Toaster } from "sonner";
 
 // URL Produksi Anda di Vercel
-const baseUrl = "https://frontend-rental-mobil.vercel.app";
+const baseUrl = "https://niagakaryamandiri-rentalmobilpadang.vercel.app";
 
 // === FONT GLOBAL ===
 const poppins = Poppins({

@@ -7,6 +7,6 @@ export default function robots(): MetadataRoute.Robots {
       allow: '/',
       disallow: ['/admin/', '/login/'], // Halaman admin tidak akan muncul di Google
     },
-    sitemap: 'https://frontend-rental-mobil.vercel.app/sitemap.xml',
+    sitemap: 'https://niagakaryamandiri-rentalmobilpadang.vercel.app/sitemap.xml',
   }
 }
