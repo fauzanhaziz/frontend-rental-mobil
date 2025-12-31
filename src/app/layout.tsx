@@ -11,6 +11,9 @@ import { PageTransition } from "@/components/PageTransition";
 import { GoogleOAuthProvider } from "@react-oauth/google";
 import { Toaster } from "sonner";
 
+// URL Produksi Anda di Vercel
+const baseUrl = "https://frontend-rental-mobil.vercel.app";
+
 // === FONT GLOBAL ===
 const poppins = Poppins({
   subsets: ["latin"],
@@ -21,13 +24,20 @@ const poppins = Poppins({
 
 // === METADATA GLOBAL UNTUK SEO DASAR ===
 export const metadata: Metadata = {
-  metadataBase: new URL("https://rentalmobil.id"),
+  // MetadataBase disesuaikan ke URL Vercel agar link gambar & SEO valid
+  metadataBase: new URL(baseUrl),
   title: {
     default: "Rental Mobil Padang — Sewa Mobil Murah & Terpercaya",
     template: "%s | Rental Mobil Padang",
   },
   description:
     "Sewa mobil di Padang dengan mudah dan cepat. Pilihan mobil keluarga & premium. Harga terjangkau, sopir profesional, dan layanan 24 jam.",
+  
+  // Verifikasi Google Search Console
+  verification: {
+    google: "Y7vcSwohEG30UM9iHQu8vpHEEAw_jI-Ut0-XW3D1eUE",
+  },
+
   keywords: [
     "rental mobil padang",
     "sewa mobil padang",
@@ -35,17 +45,18 @@ export const metadata: Metadata = {
     "rental avanza padang",
     "rental mobil murah padang",
   ],
+  
   openGraph: {
     type: "website",
     locale: "id_ID",
-    url: "https://rentalmobil.id",
+    url: baseUrl, // Menggunakan baseUrl yang benar
     title: "Rental Mobil Padang — Sewa Mobil Murah & Terpercaya",
     description:
       "Sewa mobil di Padang dengan mudah dan cepat. Harga terjangkau, sopir profesional, dan layanan 24 jam.",
     siteName: "RentalMobil.id",
     images: [
       {
-        url: "/images/og-image.jpg",
+        url: "/images/og-image.jpg", // Akan otomatis menjadi baseUrl + path ini
         width: 1200,
         height: 630,
         alt: "Rental Mobil Padang — Sewa Mobil Murah & Terpercaya",
@@ -63,7 +74,7 @@ export const metadata: Metadata = {
     apple: "/apple-touch-icon.png",
   },
   alternates: {
-    canonical: "https://rentalmobil.id",
+    canonical: baseUrl, // Menggunakan baseUrl agar tidak dianggap duplikat oleh Google
   },
   robots: {
     index: true,
@@ -99,7 +110,7 @@ export default function RootLayout({
     >
       <body className="antialiased scroll-smooth min-h-screen transition-colors duration-300 bg-background text-foreground">
         
-        {/* 2. Bungkus aplikasi dengan GoogleOAuthProvider agar Login Google jalan */}
+        {/* GoogleOAuthProvider untuk fitur login */}
         <GoogleOAuthProvider clientId={process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || ""}>
           
           <PageTransition />
@@ -108,7 +119,7 @@ export default function RootLayout({
             <AuthProvider>
               <SearchProvider>
                 <NotificationProvider>
-                  {/* 🚗 Suspense untuk Loading Animation */}
+                  {/* Suspense untuk menjaga performa saat navigasi */}
                   <Suspense fallback={<LoadingCarAnimation />}>
                     {children}
                   </Suspense>
