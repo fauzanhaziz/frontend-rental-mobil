@@ -1,10 +1,10 @@
+export const dynamic = "force-dynamic";
+
 import { Suspense } from "react";
 import Hero from "@/components/Hero";
 import Features from "@/components/Features";
 import PopularCars from "@/components/PopularCars";
 import { Car } from "@/types";
-// import { Testimonials } from "@/components/Testimonials";
-// import Testimonials from "@/components/Testimonials";
 import FAQ from "@/components/FAQ";
 import CTA from "@/components/CTA";
 import BlogSection from "@/components/BlogSection";
@@ -12,23 +12,24 @@ import { LoadingCarAnimation } from "@/components/LoadingCarAnimation";
 import LocationSection from "@/components/LocationSection";
 import Documentation from "@/components/Documentation";
 
-// 2. FUNGSI FETCH DATA (Menggunakan tipe Car yang diimport)
+// 2. FUNGSI FETCH DATA
 async function getFeaturedCars(): Promise<Car[]> {
-  const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api";
+  // Gunakan variabel lingkungan atau fallback ke production URL jika di Vercel
+  const apiUrl = process.env.NEXT_PUBLIC_API_URL || "https://backend-rental-mobil.onrender.com/api";
   
   try {
     const res = await fetch(`${apiUrl}/mobil/rekomendasi/`, {
-      cache: "no-store", // Pastikan data selalu fresh
+      cache: "no-store", // Ini yang memicu Dynamic Server Usage Error jika tidak ada 'force-dynamic'
     });
 
     if (!res.ok) {
-      throw new Error("Gagal mengambil data mobil");
+      throw new Error(`Gagal mengambil data: ${res.status}`);
     }
 
-    return res.json();
+    return await res.json();
   } catch (error) {
     console.error("Error fetching cars:", error);
-    return []; // Return array kosong agar tidak crash
+    return []; 
   }
 }
 
@@ -49,7 +50,7 @@ export default async function HomePage() {
     }
   };
 
-  // 3. MAPPING DATA KE SCHEMA (Menggunakan tipe Car yang diimport)
+  // 3. MAPPING DATA KE SCHEMA
   const productSchema = cars.map((car: Car) => ({
     "@type": "Product",
     "name": `Sewa ${car.nama_mobil}`,
@@ -58,7 +59,6 @@ export default async function HomePage() {
     "offers": {
       "@type": "Offer",
       "priceCurrency": "IDR",
-      // Konversi ke string/number aman karena interface Car sudah support keduanya
       "price": car.harga_per_hari,
       "availability": "https://schema.org/InStock"
     }
@@ -85,12 +85,11 @@ export default async function HomePage() {
       <Features />
 
       {/* 4. SUSPENSE DENGAN LOADING ANIMATION */}
-      <Suspense fallback={<div className="py-20"><LoadingCarAnimation /></div>}>
+      <Suspense fallback={<div className="py-20 flex justify-center"><LoadingCarAnimation /></div>}>
         <PopularCars initialData={cars} />
       </Suspense>
-      <Documentation />
 
-      {/*<Testimonials />}*/}
+      <Documentation />
 
       <BlogSection />
       

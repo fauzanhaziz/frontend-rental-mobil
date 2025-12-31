@@ -5,7 +5,6 @@ const nextConfig: NextConfig = {
   compress: true, // Kompresi gzip/brotli
   poweredByHeader: false, // Hilangkan header X-Powered-By
   reactStrictMode: true, // Strict mode untuk debugging
-  swcMinify: true, // Minifier cepat
 
   // 2. Konfigurasi Gambar (GABUNGAN)
   images: {
