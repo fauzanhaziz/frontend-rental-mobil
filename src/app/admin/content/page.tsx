@@ -15,13 +15,13 @@ import api from "@/lib/axios";
 import { toast } from "sonner";
 import Image from "next/image";
 
-// --- TYPES (Sesuai Serializer Backend) ---
+// --- TYPES ---
 interface HeroData {
   id?: number;
   judul: string;
   sub_judul: string;
   urutan: number;
-  media_url?: string; // URL Cloudinary (https://res.cloudinary...)
+  media_url?: string;
   media_type?: 'video' | 'image';
   is_active?: boolean;
 }
@@ -34,6 +34,37 @@ interface DocItem {
   media_url?: string;
   media_type?: 'video' | 'image';
 }
+
+// --- HELPER FUNCTIONS (Solusi Preview) ---
+
+// 1. Deteksi apakah ini video atau gambar (Mendukung File Upload & URL Backend)
+const getMediaType = (file: File | null, url: string | null, typeFromDb?: string) => {
+  // A. Jika ada file baru yang diupload, cek MIME type-nya
+  if (file) {
+    return file.type.startsWith('video') ? 'video' : 'image';
+  }
+  // B. Jika data dari DB punya tipe eksplisit
+  if (typeFromDb === 'video' || typeFromDb === 'image') {
+    return typeFromDb;
+  }
+  // C. Fallback: Deteksi dari akhiran URL
+  if (url) {
+    const ext = url.split('.').pop()?.toLowerCase();
+    const videoExts = ['mp4', 'webm', 'ogg', 'mov', 'mkv', 'avi'];
+    if (ext && videoExts.includes(ext)) return 'video';
+  }
+  return 'image'; // Default
+};
+
+// 2. Generate Poster/Thumbnail untuk Video (Agar tidak hitam)
+const getVideoPoster = (url: string | null) => {
+  if (!url) return undefined;
+  // Jika URL dari Cloudinary, ganti ekstensi jadi .jpg untuk dapat thumbnail otomatis
+  if (url.includes("cloudinary.com")) {
+    return url.replace(/\.(mp4|webm|ogg|mov|mkv|avi)$/i, ".jpg");
+  }
+  return undefined;
+};
 
 export default function AdminContentPage() {
   const [activeTab, setActiveTab] = useState("hero");
@@ -71,7 +102,7 @@ function HeroManager() {
   const [preview, setPreview] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null); // Ref untuk reset input file
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const fetchHeroes = async () => {
     try {
@@ -104,7 +135,7 @@ function HeroManager() {
 
   const openEdit = (item: HeroData) => {
     setFormData(item);
-    setPreview(item.media_url || null); // URL Cloudinary langsung dipakai
+    setPreview(item.media_url || null);
     setFile(null);
     if (fileInputRef.current) fileInputRef.current.value = "";
     setIsDialogOpen(true);
@@ -116,14 +147,11 @@ function HeroManager() {
     try {
       const payload = new FormData();
       payload.append("judul", formData.judul);
-      payload.append("sub_judul", formData.sub_judul || ""); // Handle null
+      payload.append("sub_judul", formData.sub_judul || "");
       payload.append("urutan", formData.urutan.toString());
       payload.append("is_active", formData.is_active ? "true" : "false");
-      
-      // Kirim file HANYA jika ada file baru yang dipilih
-      if (file) payload.append("background_media", file); 
+      if (file) payload.append("background_media", file);
 
-      // PERBAIKAN UTAMA: Jangan set Header 'Content-Type' secara manual!
       if (formData.id) {
         await api.patch(`/konten/hero/${formData.id}/`, payload);
         toast.success("Hero berhasil diupdate!");
@@ -153,6 +181,9 @@ function HeroManager() {
     } catch (e) { toast.error("Gagal ubah status"); }
   };
 
+  // Logic Preview Hero
+  const isPreviewVideo = getMediaType(file, preview, formData.media_type) === 'video';
+
   return (
     <div className="space-y-4">
       <div className="flex justify-between items-center">
@@ -173,51 +204,54 @@ function HeroManager() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {heroes.map((item, idx) => (
-              <TableRow key={item.id}>
-                <TableCell>{idx + 1}</TableCell>
-                <TableCell>
-                  <div className="w-12 h-12 bg-slate-100 rounded overflow-hidden relative border">
-                    {item.media_type === 'video' ? 
-                        <Video className="m-auto mt-3 h-5 w-5 text-slate-400" /> : 
-                        <Image src={item.media_url || ''} alt="thumb" fill className="object-cover" sizes="50px" />
-                    }
-                  </div>
-                </TableCell>
-                <TableCell>
-                  <div className="font-medium">{item.judul}</div>
-                  <div className="text-xs text-slate-500 line-clamp-1">{item.sub_judul}</div>
-                </TableCell>
-                <TableCell>{item.urutan}</TableCell>
-                <TableCell>
-                  <Switch checked={item.is_active} onCheckedChange={() => item.id && toggleActive(item.id, item.is_active || false)} />
-                </TableCell>
-                <TableCell className="text-right space-x-2">
-                  <Button variant="ghost" size="icon" onClick={() => openEdit(item)}><Pencil className="h-4 w-4 text-blue-600" /></Button>
-                  <Button variant="ghost" size="icon" onClick={() => item.id && handleDelete(item.id)}><Trash2 className="h-4 w-4 text-red-600" /></Button>
-                </TableCell>
-              </TableRow>
-            ))}
+            {heroes.map((item, idx) => {
+               const isItemVideo = getMediaType(null, item.media_url || '', item.media_type) === 'video';
+               return (
+                <TableRow key={item.id}>
+                    <TableCell>{idx + 1}</TableCell>
+                    <TableCell>
+                    <div className="w-12 h-12 bg-slate-900 rounded overflow-hidden relative border">
+                        {isItemVideo ? 
+                            <Video className="m-auto mt-3 h-5 w-5 text-slate-400" /> : 
+                            <Image src={item.media_url || ''} alt="thumb" fill className="object-cover" sizes="50px" />
+                        }
+                    </div>
+                    </TableCell>
+                    <TableCell>
+                    <div className="font-medium">{item.judul}</div>
+                    <div className="text-xs text-slate-500 line-clamp-1">{item.sub_judul}</div>
+                    </TableCell>
+                    <TableCell>{item.urutan}</TableCell>
+                    <TableCell>
+                    <Switch checked={item.is_active} onCheckedChange={() => item.id && toggleActive(item.id, item.is_active || false)} />
+                    </TableCell>
+                    <TableCell className="text-right space-x-2">
+                    <Button variant="ghost" size="icon" onClick={() => openEdit(item)}><Pencil className="h-4 w-4 text-blue-600" /></Button>
+                    <Button variant="ghost" size="icon" onClick={() => item.id && handleDelete(item.id)}><Trash2 className="h-4 w-4 text-red-600" /></Button>
+                    </TableCell>
+                </TableRow>
+            )})}
           </TableBody>
         </Table>
       </Card>
 
-      {/* DIALOG FORM HERO */}
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
         <DialogContent className="sm:max-w-[500px]">
           <DialogHeader>
             <DialogTitle>{formData.id ? "Edit Hero" : "Buat Hero Baru"}</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-4">
-            {/* Preview Box */}
             <div className="relative aspect-video w-full bg-slate-900 rounded overflow-hidden border flex items-center justify-center">
                 {preview ? (
-                    file?.type.startsWith('video') || (!file && formData.media_type === 'video') ? 
+                    isPreviewVideo ? 
                     <video 
-                        src={preview} 
+                        // Tambahkan #t=0.1 agar tidak hitam di awal
+                        src={!file ? `${preview}#t=0.1` : preview}
                         className="w-full h-full object-contain" 
                         autoPlay muted loop 
-                        crossOrigin="anonymous" // PENTING untuk Cloudinary
+                        playsInline
+                        crossOrigin="anonymous"
+                        poster={!file ? getVideoPoster(preview) : undefined}
                     /> : 
                     <Image src={preview} alt="prev" fill className="object-cover" unoptimized />
                 ) : <div className="text-slate-400 text-sm">Preview Media</div>}
@@ -268,7 +302,6 @@ function DocsManager() {
 
   const fetchDocs = async () => {
     try {
-      // Pastikan endpoint sesuai urls.py backend (biasanya Router otomatis pakai nama model)
       const res = await api.get("/konten/dokumentasi/");
       setDocs(res.data.results || res.data);
     } catch (e) { console.error(e); }
@@ -312,11 +345,8 @@ function DocsManager() {
       payload.append("judul", formData.judul);
       payload.append("deskripsi", formData.deskripsi || "");
       payload.append("urutan", formData.urutan.toString());
-      
-      // Backend field: file_media (sesuai models.py)
       if (file) payload.append("file_media", file); 
 
-      // PERBAIKAN: Hapus header manual content-type
       if (formData.id) {
         await api.patch(`/konten/dokumentasi/${formData.id}/`, payload);
         toast.success("Galeri diupdate!");
@@ -335,6 +365,9 @@ function DocsManager() {
     try { await api.delete(`/konten/dokumentasi/${id}/`); toast.success("Terhapus"); fetchDocs(); } catch (e) { toast.error("Gagal hapus"); }
   };
 
+  // Logic Preview Dokumentasi
+  const isPreviewVideo = getMediaType(file, preview, formData.media_type) === 'video';
+
   return (
     <div className="space-y-4">
       <div className="flex justify-between items-center">
@@ -343,21 +376,27 @@ function DocsManager() {
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        {docs.map((item) => (
+        {docs.map((item) => {
+           const isItemVideo = getMediaType(null, item.media_url || '', item.media_type) === 'video';
+           return (
           <div key={item.id} className="group relative border rounded-lg overflow-hidden bg-white shadow-sm hover:shadow-md transition-all">
             <div className="aspect-square relative bg-slate-900">
-                {item.media_type === 'video' ? (
-                    <video src={item.media_url} className="w-full h-full object-cover opacity-90" muted />
+                {isItemVideo ? (
+                    <video 
+                        src={`${item.media_url}#t=0.1`} 
+                        className="w-full h-full object-cover opacity-90" 
+                        muted 
+                        poster={getVideoPoster(item.media_url || '')}
+                    />
                 ) : (
                     <Image src={item.media_url || ''} alt={item.judul} fill className="object-cover" sizes="200px" />
                 )}
                 
-                {/* Overlay Buttons */}
                 <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition flex items-center justify-center gap-2">
                     <Button variant="secondary" size="icon" onClick={() => openEdit(item)}><Pencil className="h-4 w-4" /></Button>
                     <Button variant="destructive" size="icon" onClick={() => item.id && handleDelete(item.id)}><Trash2 className="h-4 w-4" /></Button>
                 </div>
-                {item.media_type === 'video' && <PlayCircle className="absolute top-2 right-2 text-white h-6 w-6 opacity-80" />}
+                {isItemVideo && <PlayCircle className="absolute top-2 right-2 text-white h-6 w-6 opacity-80" />}
             </div>
             <div className="p-3">
                 <div className="flex justify-between items-start">
@@ -367,22 +406,22 @@ function DocsManager() {
                 <p className="text-xs text-slate-500 truncate mt-1">{item.deskripsi}</p>
             </div>
           </div>
-        ))}
+        )})}
       </div>
 
-      {/* DIALOG FORM DOCS */}
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
         <DialogContent className="sm:max-w-[500px]">
           <DialogHeader><DialogTitle>{formData.id ? "Edit Galeri" : "Tambah Galeri Baru"}</DialogTitle></DialogHeader>
           <div className="space-y-4 py-4">
             <div className="relative aspect-video w-full bg-slate-900 rounded overflow-hidden border flex items-center justify-center">
                 {preview ? (
-                    file?.type.startsWith('video') || (!file && formData.media_type === 'video') ? 
+                    isPreviewVideo ? 
                     <video 
-                        src={preview} 
+                        src={!file ? `${preview}#t=0.1` : preview} 
                         className="w-full h-full object-contain" 
                         controls 
                         crossOrigin="anonymous" 
+                        poster={!file ? getVideoPoster(preview) : undefined}
                     /> : 
                     <Image src={preview} alt="prev" fill className="object-contain" unoptimized />
                 ) : <div className="flex flex-col items-center text-slate-400"><ImageIcon className="h-8 w-8 mb-2" /><span className="text-xs">No Media</span></div>}

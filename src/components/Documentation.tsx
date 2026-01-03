@@ -12,21 +12,18 @@ interface DocumentationItem {
   judul: string;
   deskripsi: string;
   media_url: string;
-  // Kita buat opsional & string agar aman jika backend mengirim null/unknown
   media_type?: string; 
 }
 
-// --- KATEGORI FILTER ---
 const categories = [
   { id: "all", label: "Semua Galeri" },
   { id: "image", label: "Foto" },
   { id: "video", label: "Video" },
 ];
 
-// --- HELPER: Deteksi Tipe Manual (Fallback) ---
-// Berguna jika backend mengirim media_type 'unknown' atau null
+// --- HELPER 1: Deteksi Tipe (Fallback) ---
 const getMediaTypeFromUrl = (url: string): "video" | "image" => {
-  if (!url) return "image"; // Default ke image jika url rusak
+  if (!url) return "image";
   const extension = url.split('.').pop()?.toLowerCase();
   const videoExts = ['mp4', 'webm', 'ogg', 'mov', 'mkv', 'avi'];
   
@@ -36,13 +33,27 @@ const getMediaTypeFromUrl = (url: string): "video" | "image" => {
   return "image";
 };
 
+// --- HELPER 2: Generate Thumbnail Cloudinary (BARU & PENTING) ---
+const getVideoThumbnail = (url: string) => {
+  if (!url) return "";
+  
+  // 1. Cek apakah ini URL dari Cloudinary
+  if (url.includes("cloudinary.com")) {
+    // Ganti ekstensi video (misal .mp4) menjadi .jpg
+    // Cloudinary otomatis akan mengambil frame tengah sebagai cover
+    return url.replace(/\.(mp4|webm|ogg|mov|mkv|avi)$/i, ".jpg");
+  }
+
+  // 2. Jika bukan Cloudinary, biarkan kosong (browser akan coba ambil frame ke-0)
+  return undefined;
+};
+
 export default function Documentation() {
   const [items, setItems] = useState<DocumentationItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState("all");
   const [selectedItem, setSelectedItem] = useState<DocumentationItem | null>(null);
 
-  // 1. FETCH DATA DARI BACKEND
   useEffect(() => {
     const fetchGallery = async () => {
       try {
@@ -58,17 +69,12 @@ export default function Documentation() {
     fetchGallery();
   }, []);
 
-  // 2. LOGIKA FILTER YANG LEBIH KUAT
   const filteredItems = items.filter((item) => {
     if (filter === "all") return true;
-
-    // Ambil tipe dari backend, jika tidak ada/unknown, deteksi sendiri dari URL
     let type = item.media_type;
     if (!type || type === 'unknown') {
         type = getMediaTypeFromUrl(item.media_url);
     }
-
-    // Pastikan perbandingan case-insensitive dan string aman
     return type.toLowerCase() === filter;
   });
 
@@ -119,7 +125,6 @@ export default function Documentation() {
           >
             <AnimatePresence mode="popLayout">
               {filteredItems.map((item) => {
-                // Tentukan tipe final untuk rendering (agar konsisten)
                 const finalType = (!item.media_type || item.media_type === 'unknown') 
                     ? getMediaTypeFromUrl(item.media_url) 
                     : item.media_type;
@@ -138,8 +143,12 @@ export default function Documentation() {
                     {/* LOGIKA TAMPILAN THUMBNAIL */}
                     {finalType === 'video' ? (
                       <div className="w-full h-full relative bg-black">
+                        {/* UPDATE DISINI: Menambahkan Poster & trik URL */}
                         <video 
-                          src={item.media_url} 
+                          // Trik 1: Tambah #t=0.1 agar browser mengambil detik ke-0.1 (bukan detik 0 yg hitam)
+                          src={`${item.media_url}#t=0.1`} 
+                          // Trik 2: Gunakan fungsi poster Cloudinary (.jpg)
+                          poster={getVideoThumbnail(item.media_url)}
                           className="w-full h-full object-cover opacity-90 group-hover:scale-110 transition-transform duration-700" 
                           muted 
                           playsInline
@@ -207,7 +216,6 @@ export default function Documentation() {
               className="relative w-full max-w-5xl h-auto max-h-[90vh] flex flex-col items-center justify-center rounded-xl overflow-hidden bg-black"
               onClick={(e) => e.stopPropagation()}
             >
-              {/* Cek tipe sekali lagi untuk modal */}
               {((!selectedItem.media_type || selectedItem.media_type === 'unknown') 
                   ? getMediaTypeFromUrl(selectedItem.media_url) 
                   : selectedItem.media_type) === "video" ? (
@@ -216,6 +224,8 @@ export default function Documentation() {
                     src={selectedItem.media_url}
                     controls
                     autoPlay
+                    // Di modal juga pakai poster agar saat loading tidak hitam
+                    poster={getVideoThumbnail(selectedItem.media_url)}
                     className="w-full h-full object-contain"
                   />
                 </div>
