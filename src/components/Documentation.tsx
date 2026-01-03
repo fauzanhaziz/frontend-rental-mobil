@@ -4,16 +4,16 @@ import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import Image from "next/image";
 import { Play, X, Image as ImageIcon, Film, ZoomIn, Loader2 } from "lucide-react";
-import api from "@/lib/axios"; // Pastikan path ini sesuai dengan file axios instance Anda
+import api from "@/lib/axios";
 
 // --- TIPE DATA ---
-// Sesuai dengan Serializer Backend terbaru
 interface DocumentationItem {
   id: number;
   judul: string;
   deskripsi: string;
-  media_url: string; // URL ini sekarang sudah lengkap (https://res.cloudinary.com/...)
-  media_type: "video" | "image"; // Sesuai dengan logika backend
+  media_url: string;
+  // Kita buat opsional & string agar aman jika backend mengirim null/unknown
+  media_type?: string; 
 }
 
 // --- KATEGORI FILTER ---
@@ -22,6 +22,19 @@ const categories = [
   { id: "image", label: "Foto" },
   { id: "video", label: "Video" },
 ];
+
+// --- HELPER: Deteksi Tipe Manual (Fallback) ---
+// Berguna jika backend mengirim media_type 'unknown' atau null
+const getMediaTypeFromUrl = (url: string): "video" | "image" => {
+  if (!url) return "image"; // Default ke image jika url rusak
+  const extension = url.split('.').pop()?.toLowerCase();
+  const videoExts = ['mp4', 'webm', 'ogg', 'mov', 'mkv', 'avi'];
+  
+  if (extension && videoExts.includes(extension)) {
+    return "video";
+  }
+  return "image";
+};
 
 export default function Documentation() {
   const [items, setItems] = useState<DocumentationItem[]>([]);
@@ -33,10 +46,7 @@ export default function Documentation() {
   useEffect(() => {
     const fetchGallery = async () => {
       try {
-        // Sesuaikan endpoint dengan urls.py backend Anda
-        const res = await api.get("/konten/public/dokumentasi/"); 
-        
-        // Handle jika response berupa pagination (results) atau array biasa
+        const res = await api.get("/konten/public/dokumentasi/");
         const data = res.data.results ? res.data.results : res.data;
         setItems(data);
       } catch (error) {
@@ -48,9 +58,19 @@ export default function Documentation() {
     fetchGallery();
   }, []);
 
-  const filteredItems = items.filter((item) => 
-    filter === "all" ? true : item.media_type === filter
-  );
+  // 2. LOGIKA FILTER YANG LEBIH KUAT
+  const filteredItems = items.filter((item) => {
+    if (filter === "all") return true;
+
+    // Ambil tipe dari backend, jika tidak ada/unknown, deteksi sendiri dari URL
+    let type = item.media_type;
+    if (!type || type === 'unknown') {
+        type = getMediaTypeFromUrl(item.media_url);
+    }
+
+    // Pastikan perbandingan case-insensitive dan string aman
+    return type.toLowerCase() === filter;
+  });
 
   return (
     <section className="py-24 bg-white dark:bg-slate-950" id="dokumentasi">
@@ -98,56 +118,62 @@ export default function Documentation() {
             className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6"
           >
             <AnimatePresence mode="popLayout">
-              {filteredItems.map((item) => (
-                <motion.div
-                  layout
-                  key={item.id}
-                  initial={{ opacity: 0, scale: 0.8 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  exit={{ opacity: 0, scale: 0.8 }}
-                  transition={{ duration: 0.3 }}
-                  className="group relative aspect-video rounded-2xl overflow-hidden cursor-pointer shadow-md hover:shadow-xl bg-gray-100 dark:bg-slate-800"
-                  onClick={() => setSelectedItem(item)}
-                >
-                  {/* LOGIKA TAMPILAN THUMBNAIL */}
-                  {item.media_type === 'video' ? (
-                    <div className="w-full h-full relative bg-black">
-                      {/* Note: src langsung pakai item.media_url (tanpa prefix) */}
-                      <video 
-                        src={item.media_url} 
-                        className="w-full h-full object-cover opacity-90 group-hover:scale-110 transition-transform duration-700" 
-                        muted 
-                        playsInline
-                        preload="metadata" // Agar tidak berat memuat semua video
-                      />
-                      <div className="absolute inset-0 flex items-center justify-center">
-                         <Play className="w-10 h-10 text-white opacity-80" />
-                      </div>
-                    </div>
-                  ) : (
-                    <Image
-                      src={item.media_url} // URL Cloudinary Langsung
-                      alt={item.judul}
-                      fill
-                      sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 25vw"
-                      className="object-cover transition-transform duration-700 group-hover:scale-110"
-                    />
-                  )}
-                  
-                  {/* Overlay Hover */}
-                  <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex flex-col items-center justify-center text-white p-4 text-center z-10">
-                    <div className="mb-2 p-3 bg-white/20 backdrop-blur-sm rounded-full">
-                      {item.media_type === "video" ? <Play className="w-8 h-8 fill-white" /> : <ZoomIn className="w-8 h-8" />}
-                    </div>
-                    <h3 className="font-bold text-sm md:text-base drop-shadow-md line-clamp-1">{item.judul}</h3>
-                  </div>
+              {filteredItems.map((item) => {
+                // Tentukan tipe final untuk rendering (agar konsisten)
+                const finalType = (!item.media_type || item.media_type === 'unknown') 
+                    ? getMediaTypeFromUrl(item.media_url) 
+                    : item.media_type;
 
-                  {/* Icon Badge Type */}
-                  <div className="absolute top-3 right-3 bg-black/50 backdrop-blur-md text-white p-1.5 rounded-lg z-10">
-                    {item.media_type === "video" ? <Film className="w-4 h-4" /> : <ImageIcon className="w-4 h-4" />}
-                  </div>
-                </motion.div>
-              ))}
+                return (
+                  <motion.div
+                    layout
+                    key={item.id}
+                    initial={{ opacity: 0, scale: 0.8 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    exit={{ opacity: 0, scale: 0.8 }}
+                    transition={{ duration: 0.3 }}
+                    className="group relative aspect-video rounded-2xl overflow-hidden cursor-pointer shadow-md hover:shadow-xl bg-gray-100 dark:bg-slate-800"
+                    onClick={() => setSelectedItem(item)}
+                  >
+                    {/* LOGIKA TAMPILAN THUMBNAIL */}
+                    {finalType === 'video' ? (
+                      <div className="w-full h-full relative bg-black">
+                        <video 
+                          src={item.media_url} 
+                          className="w-full h-full object-cover opacity-90 group-hover:scale-110 transition-transform duration-700" 
+                          muted 
+                          playsInline
+                          preload="metadata"
+                        />
+                        <div className="absolute inset-0 flex items-center justify-center">
+                           <Play className="w-10 h-10 text-white opacity-80" />
+                        </div>
+                      </div>
+                    ) : (
+                      <Image
+                        src={item.media_url}
+                        alt={item.judul}
+                        fill
+                        sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 25vw"
+                        className="object-cover transition-transform duration-700 group-hover:scale-110"
+                      />
+                    )}
+                    
+                    {/* Overlay Hover */}
+                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex flex-col items-center justify-center text-white p-4 text-center z-10">
+                      <div className="mb-2 p-3 bg-white/20 backdrop-blur-sm rounded-full">
+                        {finalType === "video" ? <Play className="w-8 h-8 fill-white" /> : <ZoomIn className="w-8 h-8" />}
+                      </div>
+                      <h3 className="font-bold text-sm md:text-base drop-shadow-md line-clamp-1">{item.judul}</h3>
+                    </div>
+
+                    {/* Icon Badge Type */}
+                    <div className="absolute top-3 right-3 bg-black/50 backdrop-blur-md text-white p-1.5 rounded-lg z-10">
+                      {finalType === "video" ? <Film className="w-4 h-4" /> : <ImageIcon className="w-4 h-4" />}
+                    </div>
+                  </motion.div>
+                );
+              })}
             </AnimatePresence>
           </motion.div>
         )}
@@ -170,7 +196,6 @@ export default function Documentation() {
             className="fixed inset-0 z-[9999] bg-black/95 backdrop-blur-sm flex items-center justify-center p-4"
             onClick={() => setSelectedItem(null)}
           >
-            {/* Close Button */}
             <button
               onClick={() => setSelectedItem(null)}
               className="absolute top-6 right-6 text-white/70 hover:text-white bg-white/10 hover:bg-white/20 p-2 rounded-full z-50 transition-colors"
@@ -178,12 +203,14 @@ export default function Documentation() {
               <X className="w-8 h-8" />
             </button>
 
-            {/* Container Modal */}
             <div 
               className="relative w-full max-w-5xl h-auto max-h-[90vh] flex flex-col items-center justify-center rounded-xl overflow-hidden bg-black"
               onClick={(e) => e.stopPropagation()}
             >
-              {selectedItem.media_type === "video" ? (
+              {/* Cek tipe sekali lagi untuk modal */}
+              {((!selectedItem.media_type || selectedItem.media_type === 'unknown') 
+                  ? getMediaTypeFromUrl(selectedItem.media_url) 
+                  : selectedItem.media_type) === "video" ? (
                 <div className="w-full aspect-video bg-black">
                   <video
                     src={selectedItem.media_url}
@@ -200,13 +227,12 @@ export default function Documentation() {
                     width={1200}
                     height={800}
                     className="w-auto h-auto max-h-[80vh] max-w-full object-contain"
-                    priority // Prioritas load tinggi untuk gambar modal
+                    priority
                   />
                 </div>
               )}
               
-              {/* Caption */}
-              <div className="absolute bottom-0 left-0 w-full gradient-to-t from-black/90 via-black/50 to-transparent p-6 text-white text-center md:text-left">
+              <div className="absolute bottom-0 left-0 w-full bg-gradient-to-t from-black/90 via-black/50 to-transparent p-6 text-white text-center md:text-left">
                 <h3 className="text-xl font-bold drop-shadow-lg">{selectedItem.judul}</h3>
                 <p className="text-gray-300 text-sm mt-1 drop-shadow-md line-clamp-2">
                   {selectedItem.deskripsi}
