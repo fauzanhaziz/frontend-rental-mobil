@@ -18,21 +18,35 @@ interface HeroData {
   judul: string;
   sub_judul: string;
   media_url: string;
-  media_type: 'video' | 'image';
+  // Ubah jadi string agar aman jika backend kirim "unknown"
+  media_type?: string; 
   urutan: number;
 }
 
-// Fallback Default
+// Fallback Default (Jika database kosong/error)
 const defaultSlides: HeroData[] = [
   {
     id: 1,
     judul: "Rental Mobil Terpercaya Skala Global",
     sub_judul: "Layanan transportasi premium tidak hanya di Padang, tapi menjangkau seluruh kota besar di Indonesia hingga kebutuhan internasional.",
-    media_url: "/videos/mobil1.mp4",
+    media_url: "/videos/mobil1.mp4", // Pastikan file ini ada di folder public/videos/
     media_type: 'video',
     urutan: 1
   }
 ];
+
+// --- HELPER: Deteksi Tipe Manual (Sama seperti Documentation) ---
+const getMediaTypeFromUrl = (url: string): "video" | "image" => {
+  if (!url) return "image";
+  const extension = url.split('.').pop()?.toLowerCase();
+  // Daftar ekstensi video
+  const videoExts = ['mp4', 'webm', 'ogg', 'mov', 'mkv', 'avi'];
+  
+  if (extension && videoExts.includes(extension)) {
+    return "video";
+  }
+  return "image";
+};
 
 export default function Hero() {
   const [heroList, setHeroList] = useState<HeroData[]>([]);
@@ -45,19 +59,25 @@ export default function Hero() {
   useEffect(() => {
     const fetchHero = async () => {
       try {
-        const res = await api.get('/konten/public/hero/'); // Pastikan endpoint ini return List []
-        const data = Array.isArray(res.data) ? res.data : [res.data];
+        const res = await api.get('/konten/public/hero/');
+        
+        // PERBAIKAN 1: Handle Pagination (results) vs Array Biasa
+        const data = res.data.results ? res.data.results : res.data;
+        const dataArray = Array.isArray(data) ? data : [data];
         
         // Urutkan berdasarkan 'urutan' dari backend
-        const sortedData = data.sort((a: HeroData, b: HeroData) => a.urutan - b.urutan);
+        const sortedData = dataArray.sort((a: HeroData, b: HeroData) => a.urutan - b.urutan);
         
-        if (sortedData.length > 0) {
-          setHeroList(sortedData);
+        // Filter hanya yang punya media_url
+        const validData = sortedData.filter((item: HeroData) => item.media_url);
+
+        if (validData.length > 0) {
+          setHeroList(validData);
         } else {
           setHeroList(defaultSlides);
         }
       } catch (error) {
-        console.warn("Gagal load hero, pakai default.");
+        console.warn("Gagal load hero, pakai default.", error);
         setHeroList(defaultSlides);
       } finally {
         setIsLoading(false);
@@ -91,6 +111,11 @@ export default function Hero() {
 
   // Ambil Data Aktif
   const activeData = heroList[index] || defaultSlides[0];
+
+  // PERBAIKAN 2: Tentukan tipe media final (Backend vs URL Detection)
+  const finalType = (!activeData.media_type || activeData.media_type === 'unknown') 
+    ? getMediaTypeFromUrl(activeData.media_url) 
+    : activeData.media_type;
 
   // Variasi Animasi
   const mediaVariants = {
@@ -146,7 +171,8 @@ export default function Hero() {
               exit="exit"
               className="absolute inset-0 w-full h-full"
             >
-              {activeData.media_type === 'video' ? (
+              {/* PERBAIKAN 3: Gunakan finalType untuk render */}
+              {finalType === 'video' ? (
                 <video
                   className="w-full h-full object-cover"
                   src={activeData.media_url}
@@ -154,6 +180,7 @@ export default function Hero() {
                   loop
                   muted
                   playsInline
+                  crossOrigin="anonymous" // PENTING untuk Cloudinary
                   poster="/images/placeholder-video.jpg"
                 />
               ) : (
