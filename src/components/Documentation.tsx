@@ -4,15 +4,16 @@ import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import Image from "next/image";
 import { Play, X, Image as ImageIcon, Film, ZoomIn, Loader2 } from "lucide-react";
-import api from "@/lib/axios";
+import api from "@/lib/axios"; // Pastikan path ini sesuai dengan file axios instance Anda
 
 // --- TIPE DATA ---
+// Sesuai dengan Serializer Backend terbaru
 interface DocumentationItem {
   id: number;
   judul: string;
-  deskripsi: string; // Digunakan sebagai location/info
-  media_url: string;
-  media_type: "video" | "image";
+  deskripsi: string;
+  media_url: string; // URL ini sekarang sudah lengkap (https://res.cloudinary.com/...)
+  media_type: "video" | "image"; // Sesuai dengan logika backend
 }
 
 // --- KATEGORI FILTER ---
@@ -32,8 +33,12 @@ export default function Documentation() {
   useEffect(() => {
     const fetchGallery = async () => {
       try {
-        const res = await api.get("/konten/public/dokumentasi/"); // Pastikan endpoint benar
-        setItems(res.data.results || res.data); // Handle pagination (results) or array
+        // Sesuaikan endpoint dengan urls.py backend Anda
+        const res = await api.get("/konten/public/dokumentasi/"); 
+        
+        // Handle jika response berupa pagination (results) atau array biasa
+        const data = res.data.results ? res.data.results : res.data;
+        setItems(data);
       } catch (error) {
         console.error("Gagal load galeri", error);
       } finally {
@@ -104,23 +109,24 @@ export default function Documentation() {
                   className="group relative aspect-video rounded-2xl overflow-hidden cursor-pointer shadow-md hover:shadow-xl bg-gray-100 dark:bg-slate-800"
                   onClick={() => setSelectedItem(item)}
                 >
-                  {/* Tampilan Thumbnail di Grid */}
+                  {/* LOGIKA TAMPILAN THUMBNAIL */}
                   {item.media_type === 'video' ? (
                     <div className="w-full h-full relative bg-black">
+                      {/* Note: src langsung pakai item.media_url (tanpa prefix) */}
                       <video 
                         src={item.media_url} 
                         className="w-full h-full object-cover opacity-90 group-hover:scale-110 transition-transform duration-700" 
                         muted 
                         playsInline
+                        preload="metadata" // Agar tidak berat memuat semua video
                       />
-                      {/* Play Icon Overlay for Video Thumb */}
                       <div className="absolute inset-0 flex items-center justify-center">
                          <Play className="w-10 h-10 text-white opacity-80" />
                       </div>
                     </div>
                   ) : (
                     <Image
-                      src={item.media_url}
+                      src={item.media_url} // URL Cloudinary Langsung
                       alt={item.judul}
                       fill
                       sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 25vw"
@@ -136,7 +142,7 @@ export default function Documentation() {
                     <h3 className="font-bold text-sm md:text-base drop-shadow-md line-clamp-1">{item.judul}</h3>
                   </div>
 
-                  {/* Icon Badge */}
+                  {/* Icon Badge Type */}
                   <div className="absolute top-3 right-3 bg-black/50 backdrop-blur-md text-white p-1.5 rounded-lg z-10">
                     {item.media_type === "video" ? <Film className="w-4 h-4" /> : <ImageIcon className="w-4 h-4" />}
                   </div>
@@ -146,6 +152,7 @@ export default function Documentation() {
           </motion.div>
         )}
 
+        {/* Empty State */}
         {!loading && filteredItems.length === 0 && (
             <div className="text-center py-20 text-slate-400">
                 Belum ada dokumentasi untuk kategori ini.
@@ -160,8 +167,7 @@ export default function Documentation() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            style={{ zIndex: 9999 }}
-            className="fixed inset-0 bg-black/95 backdrop-blur-sm flex items-center justify-center p-4"
+            className="fixed inset-0 z-[9999] bg-black/95 backdrop-blur-sm flex items-center justify-center p-4"
             onClick={() => setSelectedItem(null)}
           >
             {/* Close Button */}
@@ -194,7 +200,7 @@ export default function Documentation() {
                     width={1200}
                     height={800}
                     className="w-auto h-auto max-h-[80vh] max-w-full object-contain"
-                    priority
+                    priority // Prioritas load tinggi untuk gambar modal
                   />
                 </div>
               )}

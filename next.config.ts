@@ -1,23 +1,38 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  // 1. Optimasi & Keamanan (Sesuai kode Anda)
-  compress: true, // Kompresi gzip/brotli
-  poweredByHeader: false, // Hilangkan header X-Powered-By
-  reactStrictMode: true, // Strict mode untuk debugging
+  // 1. Optimasi & Keamanan
+  compress: true, 
+  poweredByHeader: false, 
+  reactStrictMode: true, 
 
-  // 2. Konfigurasi Gambar (GABUNGAN)
+  // 2. Konfigurasi Gambar (UPDATE PENTING DISINI)
   images: {
-    // A. Format Modern (Punya Anda)
     formats: ["image/avif", "image/webp"], 
     
-    // B. Izin Domain Eksternal (SOLUSI ERROR IMAGE)
     remotePatterns: [
+      // A. CLOUDINARY (WAJIB: Karena backend sekarang simpan gambar di sini)
+      {
+        protocol: "https",
+        hostname: "res.cloudinary.com",
+        port: "",
+        pathname: "/**", // Izinkan semua path folder di Cloudinary
+      },
+
+      // B. Backend Render (Opsional: Jaga-jaga jika ada gambar yang tertinggal di server)
+      {
+        protocol: "https",
+        hostname: "backend-rental-mobil.onrender.com",
+        port: "",
+        pathname: "/media/**",
+      },
+
+      // C. Localhost (Tetap simpan untuk keperluan testing di laptop)
       {
         protocol: "http",
         hostname: "localhost",
-        port: "8000", // Port Backend Django
-        pathname: "/media/**", // Izinkan akses folder media
+        port: "8000",
+        pathname: "/media/**",
       },
       {
         protocol: "http",
@@ -26,12 +41,6 @@ const nextConfig: NextConfig = {
         pathname: "/media/**",
       },
     ],
-  },
-
-  // Catatan: 'srcDir' dihapus karena Next.js mendeteksi folder 'src' secara otomatis.
-  // Menambahkan properti yang tidak dikenal ke dalam object NextConfig akan menyebabkan error TypeScript.
-  experimental: {
-    // Tambahkan fitur eksperimental di sini jika perlu
   },
 };
 
